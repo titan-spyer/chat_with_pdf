@@ -1,3 +1,4 @@
+import asyncio
 from dotenv import load_dotenv
 import os
 import streamlit as st
@@ -16,6 +17,12 @@ def main():
         st.error("GOOGLE_API_KEY environment variable not set. Please create a .env file and add it.")
         st.info("You can get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).")
         st.stop()
+    
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
     st.set_page_config(page_title="PDF Chatbot", page_icon=":books:")
     st.header("PDF Chatbot with Google Generative AI :books:")
