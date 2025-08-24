@@ -52,7 +52,7 @@ def main():
                 knowledge_base = FAISS.from_texts(chunks, embeddings)
 
                 # Create the conversation chain
-                llm = GoogleGenerativeAI(model="gemini-pro", temperature=0.3)
+                llm = GoogleGenerativeAI(model="gemini-1.0-pro", temperature=0.3)
                 memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
                 st.session_state.conversation = ConversationalRetrievalChain.from_llm(
                     llm=llm,
