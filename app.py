@@ -33,40 +33,46 @@ def main():
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = None
 
-    pdf = st.file_uploader("Upload your PDF", type=["pdf"])
+    with st.sidebar:
+        st.subheader("Your document")
+        pdf = st.file_uploader("Upload your PDF and click 'Process'", type=["pdf"])
+        if st.button("Process"):
+            if pdf is not None:
+                with st.spinner("Processing PDF..."):
+                    # Extract text from PDF
+                    pdf_reader = PdfReader(pdf)
+                    text = "".join(page.extract_text() for page in pdf_reader.pages if page.extract_text())
+                    
+                    # Split text into chunks
+                    text_splitter = CharacterTextSplitter(separator="\n", chunk_size=1000, chunk_overlap=200)
+                    chunks = text_splitter.split_text(text)
 
-    if pdf is not None:
-        # To avoid reprocessing on every interaction, we process the PDF only once
-        if st.session_state.conversation is None:
-            with st.spinner("Processing PDF..."):
-                pdf_reader = PdfReader(pdf)
-                text = ""
-                for page in pdf_reader.pages:
-                    text += page.extract_text()
-                
-                text_splitter = CharacterTextSplitter(separator="\n", chunk_size=1000, chunk_overlap=200, length_function=len)
-                chunks = text_splitter.split_text(text)
+                    # Create embeddings and vector store
+                    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+                    knowledge_base = FAISS.from_texts(chunks, embeddings)
 
-                # FIX: The 'model' parameter is required for GoogleGenerativeAIEmbeddings.
-                embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-                knowledge_base = FAISS.from_texts(chunks, embeddings)
+                    # Create the conversation chain
+                    # Use gemini-pro for more generous free-tier rate limits
+                    llm = GoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.3)
+                    memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
+                    st.session_state.conversation = ConversationalRetrievalChain.from_llm(
+                        llm=llm,
+                        retriever=knowledge_base.as_retriever(),
+                        memory=memory
+                    )
+                    st.success("PDF processed! You can now ask questions about it.")
+            else:
+                st.warning("Please upload a PDF file first.")
 
-                # Create the conversation chain
-                llm = GoogleGenerativeAI(model="gemini-1.5-pro-latest", temperature=0.3)
-                memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
-                st.session_state.conversation = ConversationalRetrievalChain.from_llm(
-                    llm=llm,
-                    retriever=knowledge_base.as_retriever(),
-                    memory=memory
-                )
-                st.success("PDF processed! You can now ask questions.")
-
+    if st.session_state.conversation:
         user_query = st.text_input("Ask about your PDF:")
         if user_query and st.session_state.conversation:
-            response = st.session_state.conversation({'question': user_query})
-            st.session_state.chat_history = response['chat_history']
+            with st.spinner("Thinking..."):
+                st.session_state.conversation.invoke({'question': user_query})
+                st.session_state.chat_history = st.session_state.conversation.memory.chat_memory.messages
 
-            # Display chat history
+        # Display chat history from session state
+        if st.session_state.chat_history:
             for i, message in enumerate(st.session_state.chat_history):
                 if i % 2 == 0:
                     st.write(f"**You:** {message.content}")
