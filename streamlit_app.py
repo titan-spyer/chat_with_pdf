@@ -11,9 +11,18 @@ from langchain.chains.conversational_retrieval.base import ConversationalRetriev
 from langchain.memory import ConversationBufferMemory
 
 def main():
+    # In some environments, especially with libraries like langchain that use asyncio,
+    # a RuntimeError can occur if there's no current event loop.
+    # This code ensures that an event loop is available for the current thread.
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
+
     load_dotenv()
     # Add API key check
-    if not os.getenv("GOOGLE_API_KEY"):
+    GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not GOOGLE_API_KEY:
         st.error("GOOGLE_API_KEY environment variable not set. Please create a .env file and add it.")
         st.info("You can get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).")
         st.stop()
